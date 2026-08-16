@@ -33,6 +33,7 @@ const SUCCESS_RES = { state: 'COMPLETED', statusCode: 200 } as ActionResult
 const FAILURE_RES = { state: 'COMPLETED', statusCode: 400 } as ActionResult
 
 const source = 'autopilot'
+const apiDeviceId = 'emulator'
 
 export default function (app: any): Autopilot {
   let currentState = 'standby'
@@ -40,6 +41,28 @@ export default function (app: any): Autopilot {
   let stateInterval: any
   let routeXteLookahead = defaultRouteXteLookahead
   let routeMaxXteCorrection = degsToRad(defaultRouteMaxXteCorrection)
+
+  const updateApiState = (pilot: Autopilot) => {
+    if (typeof app.autopilotUpdate !== 'function') {
+      return
+    }
+
+    const stateObj = (pilot.states?.() ?? []).find(
+      (state) => state.name === currentState
+    )
+    const engaged = stateObj ? stateObj.engaged : false
+    const update: any = {
+      state: currentState,
+      mode: engaged ? currentState : null,
+      engaged
+    }
+
+    if (currentTarget !== undefined) {
+      update.target = currentTarget
+    }
+
+    app.autopilotUpdate(apiDeviceId, update)
+  }
 
   const pilot: Autopilot = {
     id: 10,
@@ -80,6 +103,7 @@ export default function (app: any): Autopilot {
           })
         }
         app.handleMessage(source, delta)
+        updateApiState(pilot)
       }, 1000)
     },
 

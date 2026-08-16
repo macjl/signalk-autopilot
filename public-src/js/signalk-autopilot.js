@@ -378,7 +378,6 @@ var wsConnect = function () {
 
         var subscriptionObject = {
           "context": "vessels.self",
-          "sourcePolicy": "all",
           "subscribe": [
             {
               "path": "steering.autopilot.state",

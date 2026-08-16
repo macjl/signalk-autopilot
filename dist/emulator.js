@@ -30,12 +30,29 @@ const defaultRouteMaxXteCorrection = 60;
 const SUCCESS_RES = { state: 'COMPLETED', statusCode: 200 };
 const FAILURE_RES = { state: 'COMPLETED', statusCode: 400 };
 const source = 'autopilot';
+const apiDeviceId = 'emulator';
 function default_1(app) {
     let currentState = 'standby';
     let currentTarget = undefined;
     let stateInterval;
     let routeXteLookahead = defaultRouteXteLookahead;
     let routeMaxXteCorrection = degsToRad(defaultRouteMaxXteCorrection);
+    const updateApiState = (pilot) => {
+        if (typeof app.autopilotUpdate !== 'function') {
+            return;
+        }
+        const stateObj = (pilot.states?.() ?? []).find((state) => state.name === currentState);
+        const engaged = stateObj ? stateObj.engaged : false;
+        const update = {
+            state: currentState,
+            mode: engaged ? currentState : null,
+            engaged
+        };
+        if (currentTarget !== undefined) {
+            update.target = currentTarget;
+        }
+        app.autopilotUpdate(apiDeviceId, update);
+    };
     const pilot = {
         id: 10,
         start: (props) => {
@@ -70,6 +87,7 @@ function default_1(app) {
                     });
                 }
                 app.handleMessage(source, delta);
+                updateApiState(pilot);
             }, 1000);
         },
         stop: () => {

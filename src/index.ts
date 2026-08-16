@@ -271,6 +271,26 @@ export default function (app: any) {
     return config
   }
 
+  const refreshApDataFromPaths = () => {
+    const state = app.getSelfPath(`${state_path}.value`)
+    if (state !== undefined) {
+      apData.state = isValidState(state) ? state : null
+      const stateObj = apData.options.states.find((i) => i.name === state)
+      apData.engaged = stateObj ? stateObj.engaged : false
+      apData.mode = apData.engaged ? apData.state : null
+    }
+
+    const headingTarget = app.getSelfPath(`${target_heading}.value`)
+    const windTarget = app.getSelfPath(`${target_wind}.value`)
+    if (apData.state === 'wind' && windTarget !== undefined) {
+      apData.target = windTarget
+    } else if (headingTarget !== undefined) {
+      apData.target = headingTarget
+    }
+
+    return apData
+  }
+
   // Autopilot API - register with Autopilot API
   const registerProvider = () => {
     app.debug('**** intialise Sk path subscriptions *****')
@@ -280,9 +300,10 @@ export default function (app: any) {
     try {
       const provider: AutopilotProvider = {
         getData: async (_deviceId): Promise<AutopilotInfo> => {
-          return apData
+          return refreshApDataFromPaths()
         },
         getState: async (_deviceId: string) => {
+          refreshApDataFromPaths()
           return apData.engaged ? 'enabled' : 'disabled'
         },
         setState: async (state, _deviceId) => {
@@ -309,6 +330,7 @@ export default function (app: any) {
           }
         },
         getMode: async (_deviceId) => {
+          refreshApDataFromPaths()
           return apData.mode as string
         },
         setMode: async (mode, _deviceId) => {
@@ -322,6 +344,7 @@ export default function (app: any) {
           }
         },
         getTarget: async (_deviceId) => {
+          refreshApDataFromPaths()
           return apData.target as number
         },
         setTarget: async (value, _deviceId) => {
@@ -406,6 +429,7 @@ export default function (app: any) {
     app.subscriptionmanager?.subscribe(
       {
         context: 'vessels.self',
+        sourcePolicy: 'all',
         subscribe: [
           {
             path: 'steering.autopilot.*',
@@ -440,6 +464,9 @@ export default function (app: any) {
               update.source.type &&
               update.source.type === 'NMEA2000')
           ) {
+            const emitApiDelta = !(
+              apType === 'emulator' && update.$source === 'autopilot'
+            )
             // match the src value to the autopilot.id
             if (
               update.$source !== 'autopilot' &&
@@ -460,11 +487,13 @@ export default function (app: any) {
               if (apData.engaged) {
                 apData.mode = apData.state
               }
-              app.autopilotUpdate(apType, {
-                state: apData.state,
-                mode: apData.mode,
-                engaged: apData.engaged
-              })
+              if (emitApiDelta) {
+                app.autopilotUpdate(apType, {
+                  state: apData.state,
+                  mode: apData.mode,
+                  engaged: apData.engaged
+                })
+              }
               if (apData.state != null && apData.state !== 'standby') {
                 lastState = apData.state
               }
@@ -477,7 +506,9 @@ export default function (app: any) {
               apData.state === 'wind'
             ) {
               apData.target = pathValue.value
-              app.autopilotUpdate(apType, { target: pathValue.value })
+              if (emitApiDelta) {
+                app.autopilotUpdate(apType, { target: pathValue.value })
+              }
             }
 
             if (
@@ -487,7 +518,9 @@ export default function (app: any) {
               apData.state !== 'wind'
             ) {
               apData.target = pathValue.value
-              app.autopilotUpdate(apType, { target: pathValue.value })
+              if (emitApiDelta) {
+                app.autopilotUpdate(apType, { target: pathValue.value })
+              }
             }
           }
         })

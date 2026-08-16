@@ -177,6 +177,24 @@ function default_1(app) {
         });
         return config;
     };
+    const refreshApDataFromPaths = () => {
+        const state = app.getSelfPath(`${state_path}.value`);
+        if (state !== undefined) {
+            apData.state = isValidState(state) ? state : null;
+            const stateObj = apData.options.states.find((i) => i.name === state);
+            apData.engaged = stateObj ? stateObj.engaged : false;
+            apData.mode = apData.engaged ? apData.state : null;
+        }
+        const headingTarget = app.getSelfPath(`${target_heading}.value`);
+        const windTarget = app.getSelfPath(`${target_wind}.value`);
+        if (apData.state === 'wind' && windTarget !== undefined) {
+            apData.target = windTarget;
+        }
+        else if (headingTarget !== undefined) {
+            apData.target = headingTarget;
+        }
+        return apData;
+    };
     // Autopilot API - register with Autopilot API
     const registerProvider = () => {
         app.debug('**** intialise Sk path subscriptions *****');
@@ -185,9 +203,10 @@ function default_1(app) {
         try {
             const provider = {
                 getData: async (_deviceId) => {
-                    return apData;
+                    return refreshApDataFromPaths();
                 },
                 getState: async (_deviceId) => {
+                    refreshApDataFromPaths();
                     return apData.engaged ? 'enabled' : 'disabled';
                 },
                 setState: async (state, _deviceId) => {
@@ -218,6 +237,7 @@ function default_1(app) {
                     }
                 },
                 getMode: async (_deviceId) => {
+                    refreshApDataFromPaths();
                     return apData.mode;
                 },
                 setMode: async (mode, _deviceId) => {
@@ -232,6 +252,7 @@ function default_1(app) {
                     }
                 },
                 getTarget: async (_deviceId) => {
+                    refreshApDataFromPaths();
                     return apData.target;
                 },
                 setTarget: async (value, _deviceId) => {
@@ -309,6 +330,7 @@ function default_1(app) {
     const subscribeToPaths = () => {
         app.subscriptionmanager?.subscribe({
             context: 'vessels.self',
+            sourcePolicy: 'all',
             subscribe: [
                 {
                     path: 'steering.autopilot.*',
@@ -335,6 +357,7 @@ function default_1(app) {
                         (update.source &&
                             update.source.type &&
                             update.source.type === 'NMEA2000')) {
+                        const emitApiDelta = !(apType === 'emulator' && update.$source === 'autopilot');
                         // match the src value to the autopilot.id
                         if (update.$source !== 'autopilot' &&
                             Number(update.source.src) !== autopilot.id) {
@@ -350,11 +373,13 @@ function default_1(app) {
                             if (apData.engaged) {
                                 apData.mode = apData.state;
                             }
-                            app.autopilotUpdate(apType, {
-                                state: apData.state,
-                                mode: apData.mode,
-                                engaged: apData.engaged
-                            });
+                            if (emitApiDelta) {
+                                app.autopilotUpdate(apType, {
+                                    state: apData.state,
+                                    mode: apData.mode,
+                                    engaged: apData.engaged
+                                });
+                            }
                             if (apData.state != null && apData.state !== 'standby') {
                                 lastState = apData.state;
                             }
@@ -364,14 +389,18 @@ function default_1(app) {
                             'steering.autopilot.target.windAngleApparent' &&
                             apData.state === 'wind') {
                             apData.target = pathValue.value;
-                            app.autopilotUpdate(apType, { target: pathValue.value });
+                            if (emitApiDelta) {
+                                app.autopilotUpdate(apType, { target: pathValue.value });
+                            }
                         }
                         if ((pathValue.path === 'steering.autopilot.target.headingTrue' ||
                             pathValue.path ===
                                 'steering.autopilot.target.headingMagnetic') &&
                             apData.state !== 'wind') {
                             apData.target = pathValue.value;
-                            app.autopilotUpdate(apType, { target: pathValue.value });
+                            if (emitApiDelta) {
+                                app.autopilotUpdate(apType, { target: pathValue.value });
+                            }
                         }
                     }
                 });
