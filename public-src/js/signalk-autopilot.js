@@ -382,7 +382,7 @@ var wsConnect = function () {
             {
               "path": "steering.autopilot.state",
               "format": "delta",
-              "minPeriod": 900
+              "period": 1000
             },
             {
               "path": "navigation.headingMagnetic",
