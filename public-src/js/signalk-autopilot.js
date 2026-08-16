@@ -472,10 +472,6 @@ var dispatchMessages = function (jsonData) {
         update.values.forEach((value) => {
           if (value.path === "steering.autopilot.state") {
             clearTimeout(handlePilotStatusTimeout);
-            handlePilotStatusTimeout = setTimeout(() => {
-              console.log('timeout:' + pilotStatus);
-              setPilotStatus('');
-            }, timeoutValue);
             setPilotStatus(value.value);
           } else if (value.path.startsWith("notifications.autopilot")) {
             setNotificationMessage(value);
