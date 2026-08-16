@@ -378,11 +378,12 @@ var wsConnect = function () {
 
         var subscriptionObject = {
           "context": "vessels.self",
+          "sourcePolicy": "all",
           "subscribe": [
             {
               "path": "steering.autopilot.state",
               "format": "delta",
-              "period": 1000
+              "minPeriod": 900
             },
             {
               "path": "navigation.headingMagnetic",
